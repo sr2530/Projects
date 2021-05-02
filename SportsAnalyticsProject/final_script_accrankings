@@ -1,0 +1,117 @@
+SELECT ROW_NUMBER() OVER(ORDER BY (T5.FinalRating + T6.TotalRating) desc) as Rank,
+    T5.Team, T5.Neutral, T5.Home, T5.HomeWeight, T5.Away, T5.AwayWeight, round(T5.FinalRating, 2) as WinRating, 
+    T6.PPG, T6.APG, T6.FGMPG, T6.TotalRating as StatRating, 
+    round(T5.FinalRating + T6.TotalRating, 2) as COMPLETE_RATING FROM (
+SELECT ROW_NUMBER() OVER(ORDER BY (COALESCE(T4.Neutral,0) + COALESCE(T4.home_weight,0) + COALESCE(T1.away_weight, 0)) desc) as Rank, 
+    T4.Team, T4.Neutral, T4.count_home as Home, 
+    round(T4.home_weight, 2) as HomeWeight, 
+    COALESCE(T1.count_away, 0) as Away, 
+    round(COALESCE(T1.away_weight, 0), 2) as AwayWeight, 
+    (COALESCE(T4.Neutral,0) + COALESCE(T4.home_weight,0) + COALESCE(T1.away_weight, 0)) as FinalRating 
+FROM (
+    SELECT T3.Team as Team, 
+        COALESCE(T2.count_neutral, 0) as Neutral, 
+        T3.count_home, T3.home_weight
+        FROM (
+            SELECT *, 
+                0.7*count_home as home_weight 
+                FROM (
+                    SELECT Team, 
+                        COUNT(*) as count_home 
+                        FROM (
+                            SELECT B.GameId, 
+                                B.Team, 
+                                B.Score, 
+                                B.Home 
+                                FROM (
+                                    SELECT DISTINCT A.GameId, 
+                                        A.Team, 
+                                        A.Score, 
+                                        A.Home 
+                                        FROM (
+                                            SELECT box_scores.GameId, 
+                                                box_scores.Team, 
+                                                box_scores.Score, 
+                                                box_scores.Home 
+                                                FROM box_scores 
+                                                    JOIN games 
+                                                        WHERE box_scores.GameId = games.GameId and games.NeutralSite = 0 
+                                                            ORDER BY box_scores.GameId, 
+                                                                box_scores.Score desc) as A
+                                                                GROUP BY A.GameId) as B WHERE B.Home = 1) GROUP BY Team
+                                                                ORDER BY count_home desc)
+                                                                ) as T3
+LEFT JOIN (
+SELECT Team, 
+    COUNT(*) as count_neutral 
+    FROM (
+        SELECT B.GameId, 
+            B.Team, 
+            B.Score 
+            FROM (
+                SELECT DISTINCT A.GameId, 
+                    A.Team, 
+                    A.Score, 
+                    A.Home 
+                    FROM (
+                        SELECT box_scores.GameId, 
+                            box_scores.Team, 
+                            box_scores.Score, 
+                            box_scores.Home 
+                            FROM box_scores 
+                                JOIN games 
+                                    WHERE box_scores.GameId = games.GameId and games.NeutralSite = 1 
+                                        ORDER BY box_scores.GameId, 
+                                            box_scores.Score desc) as A
+                                            GROUP BY A.GameId) as B) GROUP BY Team
+                                            ) as T2
+                                            ON T2.Team = T3.Team) as T4
+LEFT JOIN (
+SELECT *, 
+    1.2*count_away as away_weight 
+    FROM(
+        SELECT Team, 
+            COUNT(*) as count_away 
+            FROM (
+                SELECT B.GameId, 
+                    B.Team, 
+                    B.Score, 
+                    B.Home 
+                    FROM (
+                        SELECT DISTINCT A.GameId, 
+                            A.Team, 
+                            A.Score, 
+                            A.Home 
+                            FROM (
+                                SELECT box_scores.GameId, 
+                                    box_scores.Team, 
+                                    box_scores.Score, 
+                                    box_scores.Home 
+                                    FROM box_scores 
+                                        JOIN games 
+                                            WHERE box_scores.GameId = games.GameId and games.NeutralSite = 0 
+                                                ORDER BY box_scores.GameId, 
+                                                    box_scores.Score desc) as A
+                                                    GROUP BY A.GameId) as B WHERE B.Home = 0) GROUP BY Team
+                                                    ORDER BY count_away desc)
+                                                    ) as T1
+                                                    on T4.Team = T1.Team
+ORDER BY FinalRating desc) as T5
+JOIN (
+SELECT round(0.5 * avg(Score) + 0.3 * avg(FGM) + 0.2 * avg(AST), 2) as TotalRating, 
+    Team, 
+    round(avg(Score), 2) as PPG, 
+    round(avg(AST), 2) as APG, 
+    ROW_NUMBER() OVER(ORDER BY avg(AST) desc) as APGRank, 
+    round(avg(FGM), 2) as FGMPG 
+    FROM (
+    SELECT Team, 
+        Score, 
+        AST, FGM 
+        FROM box_scores 
+            JOIN games 
+                WHERE box_scores.GameId = games.GameId and games.NeutralSite = 0) GROUP BY Team
+ORDER BY TotalRating desc
+) 
+as T6 on T5.Team = T6.Team
+ORDER BY COMPLETE_RATING desc
