@@ -1,6 +1,6 @@
 # Data Foundation - Data Science 22.1 Release Notes
 ## 22.1.3:
-{2022-03-23 --> 2022-04-12}
+{2022-03-23 --> 2022-04-12}\
 	⚡ ([4158939])([https://dev.azure.com/chevron/IT-FoundationPlatform/_workitems/edit/4158939])
 	⭐ A third-party solution deployment workflow is described, involving a Subject Matter Expert, Data Scientist, and Business contact. ([4158939])
 	⭐ The system automatically bills based on usage, with a demo or proof of concept available. ([4158939])
